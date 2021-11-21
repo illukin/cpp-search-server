@@ -4,6 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <map>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
@@ -164,10 +165,9 @@ private:
         if (ratings.empty()) {
             return 0;
         }
-        int rating_sum = 0;
-        for (const int rating : ratings) {
-            rating_sum += rating;
-        }
+        
+        int rating_sum = accumulate(ratings.begin(), ratings.end(), 0);
+
         return rating_sum / static_cast<int>(ratings.size());
     }
     
@@ -225,7 +225,8 @@ private:
             }
             const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
             for (const auto [document_id, term_freq] : word_to_document_freqs_.at(word)) {
-                if (predicate(document_id, documents_.at(document_id).status, documents_.at(document_id).rating)) {
+                auto document = documents_.at(document_id);
+                if (predicate(document_id, document.status, document.rating)) {
                     document_to_relevance[document_id] += term_freq * inverse_document_freq;
                 }
             }
