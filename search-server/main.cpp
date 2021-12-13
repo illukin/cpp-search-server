@@ -355,7 +355,7 @@ void TestMinusWords() {
                  DocumentStatus::ACTUAL, {5, -12, 2, 1});
 
   const auto found_docs = ss.FindTopDocuments(query);
-  ASSERT(found_docs.size() == 1);
+  ASSERT(found_docs.size() == 1u);
   ASSERT(found_docs[0].id == 2);
 }
 
@@ -428,7 +428,7 @@ void TestCalcRating() {
                  DocumentStatus::ACTUAL, ratings);
 
   auto found_docs = ss.FindTopDocuments("ухоженный"s);
-  ASSERT(found_docs.size() == 1);
+  ASSERT(found_docs.size() == 1u);
 
   const Document &doc0 = found_docs[0];
   ASSERT_EQUAL_HINT(doc0.rating, average_rating,
@@ -453,7 +453,7 @@ void TestFilterPredicate() {
                  DocumentStatus::ACTUAL, {5, -12, 2, 1});
 
   auto found_docs = ss.FindTopDocuments("кот"s, predicate);
-  ASSERT(found_docs.size() == 2);
+  ASSERT(found_docs.size() == 2u);
 
   // Создание двух векторов с id и рейтингом документов для дальнейших
   // проверок этих значений
@@ -486,7 +486,7 @@ void TestSearchDocumentsWithStatus() {
 
   auto found_docs = ss.FindTopDocuments("кот"s,
                                         DocumentStatus::BANNED);
-  ASSERT(found_docs.size() == 1);
+  ASSERT(found_docs.size() == 1u);
   ASSERT(found_docs[0].id == 1);
 }
 
