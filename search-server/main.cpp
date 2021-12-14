@@ -27,6 +27,18 @@ int ReadLineWithNumber() {
   return result;
 }
 
+// Проверка символа (запрещены символы с кодами от 0 до 31)
+static bool isValidCharacter(char c) {
+  return c >= '\0' && c < ' ';
+}
+
+// Проверка строки на запрещённые символы
+static bool IsValidWord(const string& word) {
+  return none_of(word.begin(), word.end(), [](char c) {
+    return isValidCharacter(c);
+  });
+}
+
 vector<string> SplitIntoWords(const string& text) {
   vector<string> words;
   string word;
@@ -37,6 +49,9 @@ vector<string> SplitIntoWords(const string& text) {
         word.clear();
       }
     } else {
+      if (isValidCharacter(c))
+        throw invalid_argument("Special character detected");
+
       word += c;
     }
   }
@@ -48,9 +63,17 @@ vector<string> SplitIntoWords(const string& text) {
 }
 
 struct Document {
-  int id;
-  double relevance;
-  int rating;
+  Document() = default;
+
+  Document(int id, double relevance, int rating)
+    : id(id)
+    , relevance(relevance)
+    , rating(rating) {
+  }
+
+  int id = 0;
+  double relevance = 0.0;
+  int rating = 0;
 };
 
 enum class DocumentStatus {
@@ -60,16 +83,43 @@ enum class DocumentStatus {
   REMOVED,
 };
 
+// Возвращает множество уникальных НЕ пустых строк
+template <typename StringContainer>
+set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
+  set<string> non_empty_strings;
+
+  for (const string& str : strings)
+    if (!str.empty()) {
+      if (!IsValidWord(str))
+        throw invalid_argument("Special character detected");
+
+      non_empty_strings.insert(str);
+    }
+
+  return non_empty_strings;
+}
+
 class SearchServer {
 public:
-  void SetStopWords(const string& text) {
-    for (const string& word : SplitIntoWords(text)) {
-      stop_words_.insert(word);
-    }
+  int GetDocumentId(int index) const {
+    return documents_order_.at(index);
   }
+
+  template <typename StringContainer>
+  explicit SearchServer(const StringContainer& stop_words)
+    : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {}
+
+  explicit SearchServer(const string& stop_words_text)
+    : SearchServer(SplitIntoWords(stop_words_text)) {}
 
   void AddDocument(int document_id, const string& document,
                    DocumentStatus status, const vector<int>& ratings) {
+
+    // Попытка добавить документ с отрицательным id или с id ранее добавленного
+    // документа
+    if ((document_id < 0) || (documents_.count(document_id) > 0))
+      throw invalid_argument("Invalid document id");
+
     const vector<string> words = SplitIntoWordsNoStop(document);
     const double inv_word_count = 1.0 / (double)words.size();
     for (const string& word : words) {
@@ -80,6 +130,7 @@ public:
                            ComputeAverageRating(ratings),
                            status
                        });
+    documents_order_.push_back(document_id);
   }
 
   template <typename Predicate>
@@ -152,6 +203,7 @@ private:
   set<string> stop_words_;
   map<string, map<int, double>> word_to_document_freqs_;
   map<int, DocumentData> documents_;
+  vector<int> documents_order_;
 
   bool IsStopWord(const string& word) const {
     return stop_words_.count(word) > 0;
@@ -187,6 +239,16 @@ private:
     bool is_minus = false;
     // Word shouldn't be empty
     if (text[0] == '-') {
+
+      // Указание в поисковом запросе более чем одного минуса перед словами,
+      // которых не должно быть в документах
+      if (text[1] == '-')
+        throw invalid_argument("Double minus");
+
+      // Отсутствие в поисковом запросе текста после символа «минус»
+      if (text.size() == 1u)
+        throw invalid_argument("No text after minus");
+
       is_minus = true;
       text = text.substr(1);
     }
@@ -320,7 +382,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
   const string content = "cat in the city"s;
   const vector<int> ratings = {1, 2, 3};
   {
-    SearchServer server;
+    SearchServer server(""s);
     server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
     const auto found_docs = server.FindTopDocuments("in"s);
     ASSERT_EQUAL(found_docs.size(), 1u);
@@ -329,8 +391,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
   }
 
   {
-    SearchServer server;
-    server.SetStopWords("in the"s);
+    SearchServer server("in the"s);
     server.AddDocument(doc_id, content, DocumentStatus::ACTUAL, ratings);
     ASSERT_HINT(server.FindTopDocuments("in"s).empty(),
                 "Stop words must be excluded from documents"s);
@@ -340,7 +401,7 @@ void TestExcludeStopWordsFromAddedDocumentContent() {
 // Проверка поддержки минус-слов. Документы, содержащие минус-слова поискового
 // запроса, не должны включаться в результаты поиска
 void TestMinusWords() {
-  SearchServer ss;
+  SearchServer ss(""s);
   const auto query = "ухоженный -кот"s;
 
   // Два следующих документа должны быть исключены из результатов запроса
@@ -363,7 +424,7 @@ void TestMinusWords() {
 // Если есть соответствие хотя бы по одному минус-слову, должен возвращаться
 // пустой список слов.
 void TestMatchingDocuments() {
-  SearchServer ss;
+  SearchServer ss(""s);
 
   ss.AddDocument(0, "белый кот и модный ошейник"s,
                  DocumentStatus::ACTUAL, {8, -3});
@@ -398,7 +459,7 @@ void TestMatchingDocuments() {
 // документов результаты должны быть отсортированы в порядке убывания
 // релевантности
 void TestSortRelevance() {
-  SearchServer ss;
+  SearchServer ss(""s);
 
   ss.AddDocument(0, "белый кот и модный ошейник"s,
                  DocumentStatus::ACTUAL, {8, -3});
@@ -418,7 +479,7 @@ void TestSortRelevance() {
 // Вычисление рейтинга документов. Рейтинг добавленного документа равен среднему
 // арифметическому оценок документа.
 void TestCalcRating() {
-  SearchServer ss;
+  SearchServer ss(""s);
   vector<int> ratings = {5, -12, 2, 1};
   int average_rating = std::accumulate(ratings.begin(), ratings.end(), 0)
       / (int)ratings.size();
@@ -437,7 +498,7 @@ void TestCalcRating() {
 // Фильтрация результатов поиска с использованием предиката, задаваемого
 // пользователем
 void TestFilterPredicate() {
-  SearchServer ss;
+  SearchServer ss(""s);
 
   // Документы с рейтингом больше нуля
   auto predicate = [](int id, DocumentStatus status, int rating){
@@ -474,7 +535,7 @@ void TestFilterPredicate() {
 
 // Поиск документов, имеющих заданный статус
 void TestSearchDocumentsWithStatus() {
-  SearchServer ss;
+  SearchServer ss(""s);
 
   ss.AddDocument(0, "белый кот и модный ошейник"s,
                  DocumentStatus::ACTUAL, {8, -3});
@@ -503,15 +564,14 @@ vector<string> SplitIntoWordsNoStop(const string& text,
 
 // Корректное вычисление релевантности найденных документов
 void TestCalcRelevance() {
-  SearchServer ss;
-
   auto stop_words = "и в на"s;
+  SearchServer ss(stop_words);
+
   auto stop_words_v = SplitIntoWords(stop_words);
   auto doc1 = "белый кот и модный ошейник"s;
   auto doc2 = "пушистый кот пушистый хвост"s;
   auto doc3 = "ухоженный пёс выразительные глаза"s;
 
-  ss.SetStopWords(stop_words);
   ss.AddDocument(0, doc1, DocumentStatus::ACTUAL, {8, -3});
   ss.AddDocument(1, doc2, DocumentStatus::ACTUAL, {7, 2, 7});
   ss.AddDocument(2, doc3, DocumentStatus::ACTUAL, {5, -12, 2, 1});
@@ -571,8 +631,7 @@ int main() {
   // Если вы видите эту строку, значит все тесты прошли успешно
   cerr << "Search server testing finished"s << endl;
 
-  SearchServer search_server;
-  search_server.SetStopWords("и в на"s);
+  SearchServer search_server("и в на"s);
 
   search_server.AddDocument(0, "белый кот и модный ошейник"s,
                             DocumentStatus::ACTUAL, {8, -3});
