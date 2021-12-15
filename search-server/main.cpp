@@ -27,18 +27,6 @@ int ReadLineWithNumber() {
   return result;
 }
 
-// Проверка символа (запрещены символы с кодами от 0 до 31)
-static bool isValidCharacter(char c) {
-  return c >= '\0' && c < ' ';
-}
-
-// Проверка строки на запрещённые символы
-static bool IsValidWord(const string& word) {
-  return none_of(word.begin(), word.end(), [](char c) {
-    return isValidCharacter(c);
-  });
-}
-
 vector<string> SplitIntoWords(const string& text) {
   vector<string> words;
   string word;
@@ -49,9 +37,6 @@ vector<string> SplitIntoWords(const string& text) {
         word.clear();
       }
     } else {
-      if (isValidCharacter(c))
-        throw invalid_argument("Special character detected");
-
       word += c;
     }
   }
@@ -90,9 +75,6 @@ set<string> MakeUniqueNonEmptyStrings(const StringContainer& strings) {
 
   for (const string& str : strings)
     if (!str.empty()) {
-      if (!IsValidWord(str))
-        throw invalid_argument("Special character detected");
-
       non_empty_strings.insert(str);
     }
 
@@ -107,7 +89,13 @@ public:
 
   template <typename StringContainer>
   explicit SearchServer(const StringContainer& stop_words)
-    : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {}
+    : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
+    for (const auto &word : stop_words_) {
+      if (!IsValidWord(word)) {
+        throw invalid_argument("Special character detected"s);
+      }
+    }
+  }
 
   explicit SearchServer(const string& stop_words_text)
     : SearchServer(SplitIntoWords(stop_words_text)) {}
@@ -117,11 +105,12 @@ public:
 
     // Попытка добавить документ с отрицательным id или с id ранее добавленного
     // документа
-    if ((document_id < 0) || (documents_.count(document_id) > 0))
-      throw invalid_argument("Invalid document id");
+    if ((document_id < 0) || (documents_.count(document_id) > 0)) {
+      throw invalid_argument("Invalid document id"s);
+    }
 
     const vector<string> words = SplitIntoWordsNoStop(document);
-    const double inv_word_count = 1.0 / (double)words.size();
+    const double inv_word_count = 1.0 / words.size();
     for (const string& word : words) {
       word_to_document_freqs_[word][document_id] += inv_word_count;
     }
@@ -167,7 +156,7 @@ public:
   }
 
   int GetDocumentCount() const {
-    return (int)documents_.size();
+    return static_cast<int>(documents_.size());
   }
 
   tuple<vector<string>, DocumentStatus> MatchDocument(const string& raw_query,
@@ -178,7 +167,7 @@ public:
       if (word_to_document_freqs_.count(word) == 0) {
         continue;
       }
-      if (word_to_document_freqs_.at(word).count(document_id)) {
+      if (word_to_document_freqs_.at(word).count(document_id) > 0) {
         matched_words.push_back(word);
       }
     }
@@ -186,7 +175,7 @@ public:
       if (word_to_document_freqs_.count(word) == 0) {
         continue;
       }
-      if (word_to_document_freqs_.at(word).count(document_id)) {
+      if (word_to_document_freqs_.at(word).count(document_id) > 0) {
         matched_words.clear();
         break;
       }
@@ -205,6 +194,13 @@ private:
   map<int, DocumentData> documents_;
   vector<int> documents_order_;
 
+  // Проверка строки на запрещённые символы (с кодами от 0 до 31))
+  static bool IsValidWord(const string& word) {
+    return none_of(word.begin(), word.end(), [](char c) {
+      return c >= '\0' && c < ' ';
+    });
+  }
+
   bool IsStopWord(const string& word) const {
     return stop_words_.count(word) > 0;
   }
@@ -212,6 +208,10 @@ private:
   vector<string> SplitIntoWordsNoStop(const string& text) const {
     vector<string> words;
     for (const string& word : SplitIntoWords(text)) {
+      if (!IsValidWord(word)) {
+        throw invalid_argument("Special character detected"s);
+      }
+
       if (!IsStopWord(word)) {
         words.push_back(word);
       }
@@ -237,21 +237,34 @@ private:
 
   QueryWord ParseQueryWord(string text) const {
     bool is_minus = false;
-    // Word shouldn't be empty
-    if (text[0] == '-') {
 
-      // Указание в поисковом запросе более чем одного минуса перед словами,
-      // которых не должно быть в документах
-      if (text[1] == '-')
-        throw invalid_argument("Double minus");
-
-      // Отсутствие в поисковом запросе текста после символа «минус»
-      if (text.size() == 1u)
-        throw invalid_argument("No text after minus");
-
-      is_minus = true;
-      text = text.substr(1);
+    if (text.empty()) {
+      throw invalid_argument("Word is empty"s);
     }
+
+    // Удаление лидирующего минуса
+    if (text[0] == '-') {
+      text.erase(0, 1);
+      is_minus = true;
+    }
+
+    // Проверка на пустоту после удаления лидирующего минуса (отсутствие в
+    // поисковом запросе текста после символа «минус»)
+    if (text.empty()) {
+      throw invalid_argument("No text after minus"s);
+    }
+
+    // Указание в поисковом запросе более чем одного минуса перед словами,
+    // которых не должно быть в документах
+    if (text[0] == '-') {
+      throw invalid_argument("Double minus"s);
+    }
+
+    // Проверка на запрещённые символы
+    if (!IsValidWord(text)) {
+      throw invalid_argument("Special character detected"s);
+    }
+
     return {
         text,
         is_minus,
@@ -282,7 +295,7 @@ private:
   // Existence required
   double ComputeWordInverseDocumentFreq(const string& word) const {
     const auto size = word_to_document_freqs_.at(word).size();
-    return log(GetDocumentCount() * 1.0 / (double)size);
+    return log(GetDocumentCount() * 1.0 / size);
   }
 
   template <typename Predicate>
@@ -296,7 +309,7 @@ private:
       const double inverse_document_freq = ComputeWordInverseDocumentFreq(word);
       const auto docs = word_to_document_freqs_.at(word);
       for (const auto [document_id, term_freq] : docs) {
-        auto document = documents_.at(document_id);
+        const auto &document = documents_.at(document_id);
         if (predicate(document_id, document.status, document.rating)) {
           document_to_relevance[document_id] +=
               term_freq * inverse_document_freq;
@@ -468,7 +481,7 @@ void TestSortRelevance() {
   ss.AddDocument(2, "ухоженный пёс выразительные глаза"s,
                  DocumentStatus::ACTUAL, {5, -12, 2, 1});
 
-  auto found_docs = ss.FindTopDocuments("пушистый ухоженный кот");
+  auto found_docs = ss.FindTopDocuments("пушистый ухоженный кот"s);
 
   ASSERT_HINT(found_docs[0].id == 1
     && found_docs[1].id == 2
@@ -482,7 +495,7 @@ void TestCalcRating() {
   SearchServer ss(""s);
   vector<int> ratings = {5, -12, 2, 1};
   int average_rating = std::accumulate(ratings.begin(), ratings.end(), 0)
-      / (int)ratings.size();
+      / static_cast<int>(ratings.size());
 
   ss.AddDocument(2, "ухоженный пёс выразительные глаза"s,
                  DocumentStatus::ACTUAL, ratings);
@@ -492,7 +505,7 @@ void TestCalcRating() {
 
   const Document &doc0 = found_docs[0];
   ASSERT_EQUAL_HINT(doc0.rating, average_rating,
-                    "Incorrect document average rating");
+                    "Incorrect document average rating"s);
 }
 
 // Фильтрация результатов поиска с использованием предиката, задаваемого
@@ -585,11 +598,14 @@ void TestCalcRelevance() {
   auto num_of_all_documents = ss.GetDocumentCount();
   auto num_of_found_documents = found_docs.size();
   double idf =
-      log((double)num_of_all_documents / (double)num_of_found_documents);
-  double tf1 = (double)count(doc1_v.begin(), doc1_v.end(), query_word)
-      / (double)doc1_v.size();
-  double tf2 = (double)count(doc2_v.begin(), doc2_v.end(), query_word)
-      / (double)doc2_v.size();
+      log(static_cast<double>(num_of_all_documents)
+      / static_cast<double>(num_of_found_documents));
+  double tf1 =
+    static_cast<double>(count(doc1_v.begin(), doc1_v.end(), query_word))
+      / static_cast<double>(doc1_v.size());
+  double tf2 =
+    static_cast<double>(count(doc2_v.begin(), doc2_v.end(), query_word))
+      / static_cast<double>(doc2_v.size());
 
   double tfidf1 = idf * tf1;
   double tfidf2 = idf * tf2;
