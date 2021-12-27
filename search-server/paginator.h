@@ -1,9 +1,7 @@
 #pragma once
 
-#include "document.h"
-
 #include <iostream>
-#include <stddef.h>
+#include <cstddef>
 #include <vector>
 
 template <typename Iterator>
@@ -65,18 +63,6 @@ private:
 template <typename Container>
 auto Paginate(const Container& c, size_t page_size) {
   return Paginator(begin(c), end(c), page_size);
-}
-
-std::ostream& operator<<(std::ostream& os, const Document document) {
-  using std::string_literals::operator""s;
-
-  os << "{ "s
-    << "document_id = "s << document.id << ", "s
-    << "relevance = "s << document.relevance << ", "s
-    << "rating = " << document.rating
-    << " }"s;
-
-  return os;
 }
 
 template <typename Iterator>
