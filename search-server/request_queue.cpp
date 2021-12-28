@@ -33,8 +33,7 @@ std::vector<Document> RequestQueue::AddFindRequest
 
 std::vector<Document> RequestQueue::AddFindRequest(
     const std::string& raw_query) {
-  const auto documents = search_server_.FindTopDocuments(raw_query,
-    DocumentStatus::ACTUAL);
+  const auto documents = search_server_.FindTopDocuments(raw_query);
 
   RequestQueue::AddRequest(documents.empty());
   return documents;

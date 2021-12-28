@@ -31,6 +31,8 @@ public:
     return no_results_requests_;
   }
 private:
+  void AddRequest(bool is_empty_request);
+
   const SearchServer &search_server_;
 
   struct QueryResult {
@@ -40,6 +42,4 @@ private:
   std::deque<QueryResult> requests_;
   const static int min_in_day_ = 1440;
   int no_results_requests_;
-
-  void AddRequest(bool is_empty_request);
 };
