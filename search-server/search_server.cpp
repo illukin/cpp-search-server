@@ -2,8 +2,32 @@
 
 using std::string_literals::operator""s;
 
-int SearchServer::GetDocumentId(int index) const {
-  return documents_order_.at(index);
+const std::map<std::string, double>
+&SearchServer::GetWordFrequencies(int document_id) const {
+  static std::map<std::string, double> dummy;
+
+  try {
+    return document_to_word_freqs_.at(document_id);
+  } catch (std::out_of_range &e) {
+    return dummy;
+  }
+}
+
+void SearchServer::RemoveDocument(int document_id) {
+  documents_.erase(document_id);
+
+  auto id_to_del = std::find(documents_order_.begin(),
+                             documents_order_.end(), document_id);
+
+  if (id_to_del != documents_order_.end()){
+    documents_order_.erase(id_to_del);
+  }
+
+  for (auto &[key, val] : word_to_document_freqs_) {
+    if (val.find(document_id) != val.end()) {
+      val.erase(document_id);
+    }
+  }
 }
 
 void SearchServer::AddDocument(int document_id, const std::string &document,
@@ -19,6 +43,7 @@ void SearchServer::AddDocument(int document_id, const std::string &document,
   const double inv_word_count = 1.0 / words.size();
   for (const std::string &word : words) {
     word_to_document_freqs_[word][document_id] += inv_word_count;
+    document_to_word_freqs_[document_id][word] += inv_word_count;
   }
   documents_.emplace(document_id,
     DocumentData{
