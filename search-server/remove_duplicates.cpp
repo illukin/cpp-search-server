@@ -5,6 +5,7 @@
 
 void RemoveDuplicates(SearchServer& search_server) {
   std::map<int, std::set<std::string>> result;
+  std::set<std::set<std::string>> set_of_sets;
 
   for (const auto &document_id : search_server) {
     auto temp = search_server.GetWordFrequencies(document_id);
@@ -15,11 +16,11 @@ void RemoveDuplicates(SearchServer& search_server) {
   }
 
   for (const auto &[key, val] : result) {
-    for (const auto &[key2, val2] : result) {
-      if (key < key2 && val == val2) {
-        search_server.RemoveDocument(key2);
-        std::cout << "Found duplicate document id " << key2 << std::endl;
-      }
+    auto [unused , is_inserted] = set_of_sets.insert(val);
+
+    if (!is_inserted) {
+      search_server.RemoveDocument(key);
+      std::cout << "Found duplicate document id " << key << std::endl;
     }
   }
 }

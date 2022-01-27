@@ -6,28 +6,33 @@ const std::map<std::string, double>
 &SearchServer::GetWordFrequencies(int document_id) const {
   static std::map<std::string, double> dummy;
 
-  try {
+  if (document_to_word_freqs_.count(document_id) != 0) {
     return document_to_word_freqs_.at(document_id);
-  } catch (std::out_of_range &e) {
+  } else {
     return dummy;
   }
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-  documents_.erase(document_id);
+  std::vector<std::string> words_in_doc;
 
-  auto id_to_del = std::find(documents_order_.begin(),
-                             documents_order_.end(), document_id);
-
-  if (id_to_del != documents_order_.end()){
-    documents_order_.erase(id_to_del);
-  }
-
-  for (auto &[key, val] : word_to_document_freqs_) {
-    if (val.find(document_id) != val.end()) {
-      val.erase(document_id);
+  // Создание вектора слов, содержащихся в удаляемом документе, чтобы следующим
+  // циклом итерироваться только по этим словам, а не по всему массиву
+  // word_to_document_freqs_
+  if (document_to_word_freqs_.count(document_id) != 0) {
+    for (const auto &[key, val] : document_to_word_freqs_.at(document_id)) {
+      words_in_doc.push_back(key);
     }
   }
+  for (const auto &it : words_in_doc) {
+    if (word_to_document_freqs_.count(it) != 0) {
+      word_to_document_freqs_.at(it).erase(document_id);
+    }
+  }
+
+  document_to_word_freqs_.erase(document_id);
+  documents_.erase(document_id);
+  documents_ids_.erase(document_id);
 }
 
 void SearchServer::AddDocument(int document_id, const std::string &document,
@@ -50,7 +55,7 @@ void SearchServer::AddDocument(int document_id, const std::string &document,
       ComputeAverageRating(ratings),
       status
     });
-  documents_order_.push_back(document_id);
+  documents_ids_.insert(document_id);
 }
 
 std::vector<Document> SearchServer::FindTopDocuments(
