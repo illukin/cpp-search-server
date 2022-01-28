@@ -14,19 +14,11 @@ const std::map<std::string, double>
 }
 
 void SearchServer::RemoveDocument(int document_id) {
-  std::vector<std::string> words_in_doc;
-
-  // Создание вектора слов, содержащихся в удаляемом документе, чтобы следующим
-  // циклом итерироваться только по этим словам, а не по всему массиву
-  // word_to_document_freqs_
   if (document_to_word_freqs_.count(document_id) != 0) {
     for (const auto &[key, val] : document_to_word_freqs_.at(document_id)) {
-      words_in_doc.push_back(key);
-    }
-  }
-  for (const auto &it : words_in_doc) {
-    if (word_to_document_freqs_.count(it) != 0) {
-      word_to_document_freqs_.at(it).erase(document_id);
+      if (word_to_document_freqs_.count(key) != 0) {
+        word_to_document_freqs_.at(key).erase(document_id);
+      }
     }
   }
 
