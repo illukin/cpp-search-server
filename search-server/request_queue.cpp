@@ -24,7 +24,7 @@ void RequestQueue::AddRequest(bool is_empty_request) {
 }
 
 std::vector<Document> RequestQueue::AddFindRequest
-    (const std::string &raw_query, DocumentStatus status) {
+  (const std::string &raw_query, DocumentStatus status) {
   const auto documents = search_server_.FindTopDocuments(raw_query, status);
 
   RequestQueue::AddRequest(documents.empty());
@@ -32,7 +32,7 @@ std::vector<Document> RequestQueue::AddFindRequest
 }
 
 std::vector<Document> RequestQueue::AddFindRequest(
-    const std::string& raw_query) {
+  const std::string& raw_query) {
   const auto documents = search_server_.FindTopDocuments(raw_query);
 
   RequestQueue::AddRequest(documents.empty());

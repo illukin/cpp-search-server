@@ -4,8 +4,8 @@
 #include <set>
 
 void RemoveDuplicates(SearchServer& search_server) {
-  std::map<int, std::set<std::string>> result;
-  std::set<std::set<std::string>> set_of_sets;
+  std::map<int, std::set<std::string_view>> result;
+  std::set<std::set<std::string_view>> set_of_sets;
 
   for (const auto &document_id : search_server) {
     auto temp = search_server.GetWordFrequencies(document_id);
