@@ -41,10 +41,8 @@ public:
     : stop_words_(MakeUniqueNonEmptyStrings(stop_words)) {
     using std::string_literals::operator""s;
 
-    for (const std::string_view word : stop_words_) {
-      if (!IsValidWord(word)) {
-        throw std::invalid_argument("Special character detected"s);
-      }
+    if(!(std::all_of(stop_words_.begin(), stop_words_.end(), IsValidWord))) {
+      throw std::invalid_argument("Special character detected"s);
     }
   }
 

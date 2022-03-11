@@ -16,21 +16,20 @@ public:
     Value &ref_to_value;
   };
 
-  explicit ConcurrentMap(size_t bucket_count)
-    : maps_(bucket_count), v_m_(bucket_count) {};
+  explicit ConcurrentMap(size_t bucket_count) : maps_(bucket_count) {};
 
   Access operator[](const Key& key) {
     auto index = GetIndex(key);
 
-    return {std::lock_guard(v_m_[index]), maps_[index][key]};
+    return {std::lock_guard(maps_[index].mutex), maps_[index].map[key]};
   };
 
   std::map<Key, Value> BuildOrdinaryMap() {
     std::map<Key, Value> result;
 
-    for (unsigned long int i = 0; i < maps_.size(); ++i) {
-      std::lock_guard guard(v_m_[i]);
-      result.merge(maps_[i]);
+    for (size_t i = 0; i < maps_.size(); ++i) {
+      std::lock_guard guard(maps_[i].mutex);
+      result.merge(maps_[i].map);
     }
 
     return result;
@@ -39,13 +38,17 @@ public:
   void Erase(const Key &key) {
     auto index = GetIndex(key);
 
-    std::lock_guard guard(v_m_[index]);
-    maps_[index].erase(key);
+    std::lock_guard guard(maps_[index].mutex);
+    maps_[index].map.erase(key);
   }
 
 private:
-  std::vector<std::map<Key, Value>> maps_;
-  std::vector<std::mutex> v_m_;
+  struct LockedMap {
+    std::map<Key, Value> map;
+    std::mutex mutex;
+  };
+
+  std::vector<LockedMap> maps_;
 
   uint64_t GetIndex(const Key &key) {
     return key % maps_.size();
